@@ -36,6 +36,8 @@ setup(
         'django-autoslug',
         'django-markup',
         'unidecode',
+        'django-cities-light',
+        'django-taggit',
     ],
     classifiers = [
         'Development Status :: 1 - Planning',
