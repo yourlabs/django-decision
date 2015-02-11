@@ -3,11 +3,11 @@ from datetime import date
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 
-from decision.models import Vote, Proposal
+from decision.models import Vote, Poll
 from decision.exceptions import CantVoteAfterEndDate, ChoiceMustExist
 
 
-class ProposalTestCase(TestCase):
+class PollTestCase(TestCase):
     def setUp(self):
         for i in range(1, 6):
             if getattr(self, 'user%s' % i, False):
@@ -19,7 +19,7 @@ class ProposalTestCase(TestCase):
                     email='user%s@example.com' % i))
 
     def test_cant_cheat_balance(self):
-        fixture = Proposal.objects.create(vote_end=date(2432, 5, 28))
+        fixture = Poll.objects.create(vote_end=date(2432, 5, 28))
         try:
             fixture.votes.create(user=self.user1, choice=3)
         except ChoiceMustExist:
@@ -28,11 +28,11 @@ class ProposalTestCase(TestCase):
             self.fail('Should not be able to have choice=3')
 
     def test_can_vote_before_end_date(self):
-        fixture = Proposal.objects.create(vote_end=date(2432, 5, 28))
+        fixture = Poll.objects.create(vote_end=date(2432, 5, 28))
         fixture.votes.create(user=self.user1, choice=Vote.AGREE)
 
     def test_cant_vote_after_end_date(self):
-        fixture = Proposal.objects.create(vote_end=date(1871, 5, 28))
+        fixture = Poll.objects.create(vote_end=date(1871, 5, 28))
 
         try:
             fixture.votes.create(user=self.user1, choice=Vote.AGREE)
@@ -46,7 +46,7 @@ class ProposalTestCase(TestCase):
             self.assertEquals(list(votes), [(vote.user, vote.choice) 
                 for vote in fixture.votes.all()])
 
-        fixture = Proposal.objects.create(vote_end=date(2432, 5, 28))
+        fixture = Poll.objects.create(vote_end=date(2432, 5, 28))
 
         fixture.set_vote(self.user1, Vote.AGREE)
         expect_votes((self.user1, Vote.AGREE))
@@ -58,7 +58,7 @@ class ProposalTestCase(TestCase):
         expect_votes((self.user1, Vote.AGAINST), (self.user2, Vote.AGREE))
 
     def test_get_balance(self):
-        fixture = Proposal.objects.create(vote_end=date(2432, 5, 28))
+        fixture = Poll.objects.create(vote_end=date(2432, 5, 28))
         self.assertEquals(fixture.get_balance(), 0)
 
         fixture.set_vote(self.user1, Vote.AGAINST)

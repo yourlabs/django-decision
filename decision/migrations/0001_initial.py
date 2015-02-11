@@ -13,7 +13,7 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.CreateModel(
-            name='Proposal',
+            name='Poll',
             fields=[
                 ('id', models.AutoField(verbose_name='ID', serialize=False, auto_created=True, primary_key=True)),
                 ('vote_end', models.DateField()),
@@ -27,7 +27,7 @@ class Migration(migrations.Migration):
             fields=[
                 ('id', models.AutoField(verbose_name='ID', serialize=False, auto_created=True, primary_key=True)),
                 ('choice', models.IntegerField(choices=[(0, 'agree'), (1, 'abstain'), (2, 'against'), (3, 'block')])),
-                ('proposal', models.ForeignKey(related_name='votes', to='decision.Proposal')),
+                ('poll', models.ForeignKey(related_name='votes', to='decision.Poll')),
                 ('user', models.ForeignKey(related_name='votes', to=settings.AUTH_USER_MODEL)),
             ],
             options={
@@ -36,6 +36,6 @@ class Migration(migrations.Migration):
         ),
         migrations.AlterUniqueTogether(
             name='vote',
-            unique_together=set([('user', 'proposal')]),
+            unique_together=set([('user', 'poll')]),
         ),
     ]

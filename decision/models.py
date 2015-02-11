@@ -8,7 +8,7 @@ from django.db.models import signals
 from .exceptions import CantVoteAfterEndDate, ChoiceMustExist
 
 
-class Proposal(models.Model):
+class Poll(models.Model):
     vote_end = models.DateField()
 
     def set_vote(self, user, choice):
@@ -37,18 +37,18 @@ class Vote(models.Model):
     )
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='votes')
-    proposal = models.ForeignKey('Proposal', related_name='votes')
+    poll = models.ForeignKey('Poll', related_name='votes')
     choice = models.IntegerField(choices=CHOICES)
 
     class Meta:
-        unique_together = ('user', 'proposal')
+        unique_together = ('user', 'poll')
         ordering = ('pk',)
 
 
-def cant_vote_after_proposal_vote_end(sender, instance, **kwargs):
-    if date.today() > instance.proposal.vote_end:
+def cant_vote_after_poll_vote_end(sender, instance, **kwargs):
+    if date.today() > instance.poll.vote_end:
         raise CantVoteAfterEndDate()
-signals.pre_save.connect(cant_vote_after_proposal_vote_end, sender=Vote)
+signals.pre_save.connect(cant_vote_after_poll_vote_end, sender=Vote)
 
 
 def cant_cheat_balance(sender, instance, **kwargs):
