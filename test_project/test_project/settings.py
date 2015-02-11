@@ -36,12 +36,6 @@ INSTALLED_APPS = (
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-
-    'vote',
-    'taggit',
-    'cities_light',
-    'django_markup',
-    'django_comments_xtd',
     'decision',
 )
 

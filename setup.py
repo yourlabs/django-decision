@@ -30,14 +30,6 @@ setup(
     license = 'MIT',
     keywords = 'django decision making',
     install_requires=[
-        'django',
-        'django-vote',
-        'django-comments-xtd',
-        'django-autoslug',
-        'django-markup',
-        'unidecode',
-        'django-cities-light',
-        'django-taggit',
     ],
     classifiers = [
         'Development Status :: 1 - Planning',

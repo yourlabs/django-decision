@@ -1,4 +1,7 @@
 Decision-making app for Django
 ==============================
 
-Revolution !!!
+Collaborative decision making framework for Django.
+
+Currently supports direct voting, in future versions would like to support
+granular / complex delegation.
