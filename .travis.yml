@@ -5,7 +5,7 @@ env:
   - REQ="django<1.8"
 install:
   - pip install -U pip
-  - pip wheel pep8 coveralls $REQ
+  - pip install pep8 coveralls $REQ
   - pip install -q -e . --use-mirrors
   - pip freeze
 before_script:
