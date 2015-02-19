@@ -29,7 +29,7 @@ class Poll(models.Model):
             vote.choice = choice
             vote.save()
 
-        cache.set(get_user_choice_cache_key(self, user), choice, 0)
+        cache.set(get_user_choice_cache_key(self, user), choice, None)
 
         choices = Vote.objects.all().distinct('choice').order_by('choice'
                 ).values_list('choice', flat=True)
@@ -43,17 +43,17 @@ class Poll(models.Model):
         key = get_user_choice_cache_key(self, user)
         value = cache.get(key)
 
-        if value is None:
+        if value == None:
             try:
                 vote = self.votes.get(user=user)
-            except Vote.DoesNotExists:
+            except Vote.DoesNotExist:
                 value = False
             else:
-                value = vote.choice
+                value = str(vote.choice)
 
-            cache.set(key, value)
+            cache.set(key, value, None)
 
-        return value
+        return int(value)
 
     def get_balance(self):
         return self.votes.aggregate(models.Sum('choice'))['choice__sum'] or 0
