@@ -9,7 +9,7 @@ from .exceptions import CantVoteAfterEndDate, ChoiceMustExist
 
 
 class Poll(models.Model):
-    vote_end = models.DateField()
+    vote_end = models.DateField(null=True, blank=True)
 
     def set_vote(self, user, choice):
         try:
@@ -46,6 +46,9 @@ class Vote(models.Model):
 
 
 def cant_vote_after_poll_vote_end(sender, instance, **kwargs):
+    if instance.poll.vote_end is None:
+        return
+
     if date.today() > instance.poll.vote_end:
         raise CantVoteAfterEndDate()
 signals.pre_save.connect(cant_vote_after_poll_vote_end, sender=Vote)

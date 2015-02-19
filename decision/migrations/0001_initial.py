@@ -16,7 +16,7 @@ class Migration(migrations.Migration):
             name='Poll',
             fields=[
                 ('id', models.AutoField(verbose_name='ID', serialize=False, auto_created=True, primary_key=True)),
-                ('vote_end', models.DateField()),
+                ('vote_end', models.DateField(null=True, blank=True)),
             ],
             options={
             },
@@ -26,11 +26,12 @@ class Migration(migrations.Migration):
             name='Vote',
             fields=[
                 ('id', models.AutoField(verbose_name='ID', serialize=False, auto_created=True, primary_key=True)),
-                ('choice', models.IntegerField(choices=[(0, 'agree'), (1, 'abstain'), (2, 'against'), (3, 'block')])),
+                ('choice', models.IntegerField(choices=[(1, 'agree'), (0, 'abstain'), (-1, 'against')])),
                 ('poll', models.ForeignKey(related_name='votes', to='decision.Poll')),
                 ('user', models.ForeignKey(related_name='votes', to=settings.AUTH_USER_MODEL)),
             ],
             options={
+                'ordering': ('pk',),
             },
             bases=(models.Model,),
         ),
