@@ -1,0 +1,49 @@
+{% load i18n %}
+{% load decision_tags %}
+
+{% if not request.is_ajax %}
+<div class="decision-poll-vote">
+{% endif %}
+
+<span 
+     data-post="{% url 'decision_poll_vote' object.pk '-1' %}"
+     class="button alert {% if request.user|get_user_choice:object == -1 %}my-vote{% endif %}"
+     >
+
+    {% if request.user|get_user_choice:object == -1 %}
+    <i class="fa fa-check"></i>
+    {% endif %}
+
+    {% trans 'Against' %}
+    ({{ object.get_against_count }})
+</span>
+
+<span 
+     data-post="{% url 'decision_poll_vote' object.pk '0' %}"
+     class="button info {% if request.user|get_user_choice:object == 0 %}my-vote{% endif %}"
+     >
+
+    {% if request.user|get_user_choice:object == 0 %}
+    <i class="fa fa-check"></i>
+    {% endif %}
+
+    {% trans 'Abstain' %}
+    ({{ object.get_abstain_count }})
+</span>
+
+<span 
+     data-post="{% url 'decision_poll_vote' object.pk '1' %}"
+     class="button success {% if request.user|get_user_choice:object == 1 %}my-vote{% endif %}"
+     >
+
+    {% if request.user|get_user_choice:object == 1 %}
+    <i class="fa fa-check"></i>
+    {% endif %}
+
+    {% trans 'Agree' %}
+    ({{ object.get_agree_count }})
+</span>
+
+{% if not request.is_ajax %}
+</div>
+{% endif %}
