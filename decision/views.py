@@ -15,8 +15,7 @@ class PollVoteView(generic.DetailView):
 
         self.object = self.get_object()
 
-        self.object.set_vote(request.user, 
-            int(kwargs['choice']))
+        self.object.set_vote(request.user, int(kwargs['choice']))
 
-        return shortcuts.render(request, 'decision/_poll_vote.html', 
+        return shortcuts.render(request, 'decision/_poll_vote.html',
             {'object': self.object})

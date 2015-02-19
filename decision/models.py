@@ -36,14 +36,14 @@ class Poll(models.Model):
 
         for c in choices:
             cache.delete(get_poll_choice_cache_key(self, c))
-                    
+
         return vote
 
     def get_user_choice(self, user):
         key = get_user_choice_cache_key(self, user)
         value = cache.get(key)
 
-        if value == None:
+        if value is None:
             try:
                 vote = self.votes.get(user=user)
             except Vote.DoesNotExist:
