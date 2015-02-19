@@ -53,7 +53,7 @@ class Poll(models.Model):
 
             cache.set(key, value, None)
 
-        return int(value)
+        return value
 
     def get_balance(self):
         return self.votes.aggregate(models.Sum('choice'))['choice__sum'] or 0
