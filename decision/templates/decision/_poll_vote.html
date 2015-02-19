@@ -7,10 +7,10 @@
 
 <span 
      data-post="{% url 'decision_poll_vote' object.pk '-1' %}"
-     class="button alert {% if request.user|get_user_choice:object == -1 %}my-vote{% endif %}"
+     class="button alert {% if request.user|get_user_choice:object == '-1' %}my-vote{% endif %}"
      >
 
-    {% if request.user|get_user_choice:object == -1 %}
+    {% if request.user|get_user_choice:object == '-1' %}
     <i class="fa fa-check"></i>
     {% endif %}
 
@@ -20,10 +20,10 @@
 
 <span 
      data-post="{% url 'decision_poll_vote' object.pk '0' %}"
-     class="button info {% if request.user|get_user_choice:object == 0 %}my-vote{% endif %}"
+     class="button info {% if request.user|get_user_choice:object == '0' %}my-vote{% endif %}"
      >
 
-    {% if request.user|get_user_choice:object == 0 %}
+    {% if request.user|get_user_choice:object == '0' %}
     <i class="fa fa-check"></i>
     {% endif %}
 
@@ -33,10 +33,10 @@
 
 <span 
      data-post="{% url 'decision_poll_vote' object.pk '1' %}"
-     class="button success {% if request.user|get_user_choice:object == 1 %}my-vote{% endif %}"
+     class="button success {% if request.user|get_user_choice:object == '1' %}my-vote{% endif %}"
      >
 
-    {% if request.user|get_user_choice:object == 1 %}
+    {% if request.user|get_user_choice:object == '1' %}
     <i class="fa fa-check"></i>
     {% endif %}
 
