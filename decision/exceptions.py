@@ -3,9 +3,21 @@ class BaseException(Exception):
     pass
 
 
-class CantVoteAfterEndDate(BaseException):
+class PollClosed(BaseException):
     pass
 
 
-class ChoiceMustExist(BaseException):
+class InvalidChoice(BaseException):
+    pass
+
+
+class SelfDelegation(BaseException):
+    pass
+
+
+class UnauthorizedDelegatedVote(BaseException):
+    pass
+
+
+class DirectVoteOverrideAttempt(BaseException):
     pass

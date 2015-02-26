@@ -1,77 +1,134 @@
 from datetime import date
 
-from django.test import TestCase
+from django import test
 from django.contrib.auth import get_user_model
 
-from decision.models import Vote, Poll
-from decision.exceptions import CantVoteAfterEndDate, ChoiceMustExist
+from decision.models import Category, Poll, Choice, Vote, Delegation
+from decision.exceptions import *
 
 
-class PollTestCase(TestCase):
+User = get_user_model()
+
+
+class TestCase(test.TestCase):
+    def assertChoiceIs(self, user, choice):
+        self.assertEquals(self.poll.get_user_choice(user), choice)
+
     def setUp(self):
-        for i in range(1, 6):
-            if getattr(self, 'user%s' % i, False):
-                continue
+        if getattr(self, 'ready', False):
+            return
 
-            setattr(self, 'user%s' % i, 
-                    get_user_model().objects.create(
-                    username='user%s' % i, 
-                    email='user%s@example.com' % i))
+        self.category = Category.objects.create(name='test category')
 
-    def test_cant_cheat_balance(self):
-        fixture = Poll.objects.create(vote_end=date(2432, 5, 28))
-        try:
-            fixture.votes.create(user=self.user1, choice=3)
-        except ChoiceMustExist:
-            pass
-        else:
-            self.fail('Should not be able to have choice=3')
+        self.poll = self.create_poll(self.__class__.__name__)
 
-    def test_can_vote_before_end_date(self):
-        fixture = Poll.objects.create(vote_end=date(2432, 5, 28))
-        fixture.votes.create(user=self.user1, choice=Vote.AGREE)
+        self.agree = self.poll.choices.create(name='Agree')
+        self.disagree = self.poll.choices.create(name='Disagree')
 
-    def test_cant_vote_after_end_date(self):
-        fixture = Poll.objects.create(vote_end=date(1871, 5, 28))
+        self.bottom = get_user_model().objects.create(username='bottom')
+        self.middle = get_user_model().objects.create(username='middle')
+        self.top = get_user_model().objects.create(username='top')
 
-        try:
-            fixture.votes.create(user=self.user1, choice=Vote.AGREE)
-        except CantVoteAfterEndDate:
-            pass
-        else:
-            self.fail('Should not be able to vote after end date')
+        # Bottom trusts middle for all
+        self.bottom_middle = Delegation.objects.create(follower=self.bottom,
+                leader=self.middle)
 
-    def test_set_vote(self):
-        def expect_votes(*votes):
-            self.assertEquals(list(votes), [(vote.user, vote.choice) 
-                for vote in fixture.votes.all()])
+        # Middle trusts top on category
+        self.middle_top = Delegation.objects.create(follower=self.middle,
+                leader=self.top)
 
-        fixture = Poll.objects.create(vote_end=date(2432, 5, 28))
+        self.ready = True
 
-        fixture.set_vote(self.user1, Vote.AGREE)
-        expect_votes((self.user1, Vote.AGREE))
+    def tearDown(self):
+        Vote.objects.all().delete()
 
-        fixture.set_vote(self.user2, Vote.AGREE)
-        expect_votes((self.user1, Vote.AGREE), (self.user2, Vote.AGREE))
+    @classmethod
+    def tearDownClass(cls):
+        Poll.objects.all().delete()
+        Delegation.objects.all().delete()
+        Category.objects.all().delete()
 
-        fixture.set_vote(self.user1, Vote.AGAINST)
-        expect_votes((self.user1, Vote.AGAINST), (self.user2, Vote.AGREE))
 
-    def test_get_balance(self):
-        fixture = Poll.objects.create(vote_end=date(2432, 5, 28))
-        self.assertEquals(fixture.get_balance(), 0)
+class BasicTests(object):
+    def test_propagation_cant_override_my_vote(self):
+        self.poll.set_vote(self.bottom, self.agree)
+        self.poll.set_vote(self.middle, self.disagree)
 
-        fixture.set_vote(self.user1, Vote.AGAINST)
-        self.assertEquals(fixture.get_balance(), -1)
+        self.assertChoiceIs(self.bottom, self.agree)
+        self.assertChoiceIs(self.middle, self.disagree)
 
-        fixture.set_vote(self.user2, Vote.AGAINST)
-        self.assertEquals(fixture.get_balance(), -2)
+    def test_propagation_defaults_my_vote(self):
+        self.poll.set_vote(self.middle, self.agree)
 
-        fixture.set_vote(self.user3, Vote.AGREE)
-        self.assertEquals(fixture.get_balance(), -1)
+        self.assertChoiceIs(self.bottom, self.agree)
+        self.assertChoiceIs(self.middle, self.agree)
 
-        fixture.set_vote(self.user4, Vote.AGREE)
-        self.assertEquals(fixture.get_balance(), 0)
+    def test_override_propagated_vote_myself(self):
+        self.poll.set_vote(self.middle, self.disagree)
+        self.poll.set_vote(self.bottom, self.agree)
 
-        fixture.set_vote(self.user5, Vote.AGREE)
-        self.assertEquals(fixture.get_balance(), 1)
+        self.assertChoiceIs(self.middle, self.disagree)
+        self.assertChoiceIs(self.bottom, self.agree)
+
+
+class PollTestCase(BasicTests, TestCase):
+    def create_poll(self, name):
+        return Poll.objects.create(name=name)
+
+    def test_propagation_does_NOT_cascade_because_of_category(self):
+        """ 
+        Delegation has a category, poll does not, propagation should not
+        happen.
+        """
+        if self.category not in self.middle_top.categories.all():
+            self.middle_top.categories.add(self.category)
+
+        self.poll.set_vote(self.top, self.agree)
+        
+        self.assertChoiceIs(self.top, self.agree)
+        self.assertChoiceIs(self.middle, None)
+        self.assertChoiceIs(self.bottom, None)
+
+    def test_propagation_cascades_on_category_free_delegations(self):
+        """
+        Delegation has no category, poll neither, propagation should work.
+        """
+        if self.category in self.middle_top.categories.all():
+            self.middle_top.categories.remove(self.category)
+
+        self.poll.set_vote(self.top, self.agree)
+        
+        self.assertChoiceIs(self.top, self.agree)
+        self.assertChoiceIs(self.middle, self.agree)
+        self.assertChoiceIs(self.bottom, self.agree)
+
+
+class CategorisedPollTestCase(BasicTests, TestCase):
+    def setUp(self):
+        if getattr(self, 'ready', False):
+            self.middle_top.categories.add(self.category)
+        
+        super(CategorisedPollTestCase, self).setUp()
+
+    def create_poll(self, name):
+        return Poll.objects.create(name=name, category=self.category)
+
+    def test_propagation_cascade(self):
+        self.poll.set_vote(self.top, self.agree)
+        
+        self.assertEquals(self.poll.get_user_choice(self.top), 
+                self.agree)
+        self.assertEquals(self.poll.get_user_choice(self.middle),
+                self.agree)
+        self.assertEquals(self.poll.get_user_choice(self.bottom),
+                self.agree)
+
+    def test_propagation_does_cascade_with_category(self):
+        if self.category not in self.middle_top.categories.all():
+            self.middle_top.categories.add(self.category)
+
+        self.poll.set_vote(self.top, self.agree)
+        
+        self.assertChoiceIs(self.top, self.agree)
+        self.assertChoiceIs(self.middle, self.agree)
+        self.assertChoiceIs(self.bottom, self.agree)

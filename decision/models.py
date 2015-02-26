@@ -1,113 +1,126 @@
-from datetime import date
-
 from django.conf import settings
 from django.utils.translation import ugettext as _
 from django.db import models
-from django.db.models import signals
+from django.db.models import Count, Q, signals
+from django.contrib.auth import get_user_model
 from django.core.cache import cache
 
-from .exceptions import CantVoteAfterEndDate, ChoiceMustExist
+from .exceptions import *
 
 
 def get_poll_choice_cache_key(poll, choice):
-    return 'decision:pc:%s:%s' % (poll.pk, choice)
+    poll_pk = poll if isinstance(poll, int) else poll.pk
+    choice_pk = choice if isinstance(choice, int) else choice.pk
+    return 'decision:pc:%s:%s' % (poll_pk, choice)
 
 
 def get_user_choice_cache_key(poll, user):
-    return 'decision:uv:%s:%s' % (poll.pk, user.pk)
+    poll_pk = poll if isinstance(poll, int) else poll.pk
+    user_pk = user if isinstance(user, int) else user.pk
+    return 'decision:uv:%s:%s' % (poll_pk, user.pk)
+
+
+class Category(models.Model):
+    name = models.CharField(max_length=200)
+
+    def __unicode__(self):
+        return self.name
 
 
 class Poll(models.Model):
-    vote_end = models.DateField(null=True, blank=True)
+    name = models.CharField(max_length=255)
+    category = models.ForeignKey(Category, null=True, blank=True)
+    is_open = models.BooleanField(default=True)
 
-    def set_vote(self, user, choice):
+    def set_vote(self, user, choice, delegate=None, secure=True):
+        """ Ensure the vote is legal, save it and propagate it. """
+        if not self.is_open:
+            raise PollClosed()
+
+        if not isinstance(choice, Choice) or choice.poll != self:
+            raise InvalidChoice()
+
+        if secure and delegate:
+            try:
+                Delegation.objects.get(Q(categories=None)|Q(
+                    categories=self.category),
+                    leader=delegate, follower=user)
+            except Delegation.DoesNotExist:
+                raise Exception()
+
         try:
             vote = self.votes.get(user=user)
         except Vote.DoesNotExist:
-            vote = self.votes.create(user=user, choice=choice)
+            vote = self.votes.create(user=user, choice=choice,
+                    delegate=delegate)
         else:
+            if secure and delegate and vote.delegate is None:
+                raise Exception()
+
             vote.choice = choice
+            vote.delegate = delegate
             vote.save()
-
-        cache.set(get_user_choice_cache_key(self, user), choice, None)
-
-        choices = Vote.objects.all().distinct('choice').order_by('choice'
-                ).values_list('choice', flat=True)
-
-        for c in choices:
-            cache.delete(get_poll_choice_cache_key(self, c))
 
         return vote
 
+    def get_vote(self, user):
+        return self.votes.get(user=user)
+
     def get_user_choice(self, user):
-        key = get_user_choice_cache_key(self, user)
-        value = cache.get(key)
+        try:
+            return self.get_vote(user=user).choice
+        except Vote.DoesNotExist:
+            return
 
-        if value is None:
-            try:
-                vote = self.votes.get(user=user)
-            except Vote.DoesNotExist:
-                value = False
-            else:
-                value = str(vote.choice)
 
-            cache.set(key, value, None)
-
-        return value
-
-    def get_balance(self):
-        return self.votes.aggregate(models.Sum('choice'))['choice__sum'] or 0
-
-    def get_vote_count(self, choice):
-        key = get_poll_choice_cache_key(self, choice)
-        value = cache.get(key)
-
-        if value is None:
-            value = self.votes.filter(choice=choice).count()
-            cache.set(key, value)
-
-        return value
-
-    def get_agree_count(self):
-        return self.get_vote_count(Vote.AGREE)
-
-    def get_abstain_count(self):
-        return self.get_vote_count(Vote.ABSTAIN)
-
-    def get_against_count(self):
-        return self.get_vote_count(Vote.AGAINST)
+class Choice(models.Model):
+    poll = models.ForeignKey(Poll, related_name='choices')
+    name = models.CharField(max_length=255)
+    vote_count = models.IntegerField(default=0)
 
 
 class Vote(models.Model):
-    AGAINST = -1
-    ABSTAIN = 0
-    AGREE = 1
-
-    CHOICES = (
-        (AGREE, _(u'agree')),
-        (ABSTAIN, _(u'abstain')),
-        (AGAINST, _(u'against')),
-    )
-
     user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='votes')
     poll = models.ForeignKey('Poll', related_name='votes')
-    choice = models.IntegerField(choices=CHOICES)
+    choice = models.ForeignKey(Choice, related_name='votes')
+    delegate = models.ForeignKey(settings.AUTH_USER_MODEL, 
+            related_name='delegated_votes', null=True, blank=True)
 
     class Meta:
         unique_together = ('user', 'poll')
         ordering = ('pk',)
 
 
-def cant_vote_after_poll_vote_end(sender, instance, **kwargs):
-    if instance.poll.vote_end is None:
-        return
+class Delegation(models.Model):
+    follower = models.ForeignKey(settings.AUTH_USER_MODEL,
+        related_name='delegations_as_follower')
+    leader = models.ForeignKey(settings.AUTH_USER_MODEL,
+        related_name='delegations_as_leader')
+    categories = models.ManyToManyField(Category, blank=True)
 
-    if date.today() > instance.poll.vote_end:
-        raise CantVoteAfterEndDate()
-signals.pre_save.connect(cant_vote_after_poll_vote_end, sender=Vote)
+    class Meta:
+        unique_together = ('leader', 'follower')
 
 
-def cant_cheat_balance(sender, instance, **kwargs):
-    if instance.choice not in [c[0] for c in Vote.CHOICES]:
-        raise ChoiceMustExist()
-signals.pre_save.connect(cant_cheat_balance, sender=Vote)
+def prevent_delegation_to_self(sender, instance, **kwargs):
+    if instance.leader == instance.follower:
+        raise CantDelegateToSelf()
+signals.pre_save.connect(prevent_delegation_to_self, sender=Delegation)
+
+
+def propagate_vote(sender, instance, **kwargs):
+    # This ain't gonna scale, EVER, oh well :)
+    User = get_user_model()
+
+    followers = User.objects.filter(
+            models.Q(delegations_as_follower__categories=instance.poll.category) | 
+            models.Q(delegations_as_follower__categories=None),
+            delegations_as_follower__leader=instance.user,
+        ).exclude(
+            votes__poll=instance.poll, 
+            votes__delegate=None,
+    )
+
+    for user in followers:
+        instance.poll.set_vote(user, instance.choice, instance.user)
+signals.post_save.connect(propagate_vote, sender=Vote)

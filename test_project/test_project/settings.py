@@ -39,8 +39,7 @@ INSTALLED_APPS = (
     'decision',
 )
 
-COMMENTS_APP = 'django_comments_xtd'
-COMMENTS_XTD_CONFIRM_EMAIL = True
+AUTH_USER_MODEL = 'auth.User'
 
 MIDDLEWARE_CLASSES = (
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -55,6 +54,8 @@ MIDDLEWARE_CLASSES = (
 ROOT_URLCONF = 'test_project.urls'
 
 WSGI_APPLICATION = 'test_project.wsgi.application'
+
+
 
 
 # Database

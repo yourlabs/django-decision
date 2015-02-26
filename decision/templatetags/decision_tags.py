@@ -6,4 +6,4 @@ register = template.Library()
 
 @register.filter
 def get_user_choice(user, poll):
-    return poll.get_user_choice(user)
+    return str(poll.get_user_choice(user))

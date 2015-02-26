@@ -1,2 +1,4 @@
 *pyc
+test_project/db.sqlite3
+*swp
 *egg-info
