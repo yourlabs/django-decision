@@ -42,7 +42,7 @@ class Poll(models.Model):
 
         if secure and delegate:
             try:
-                Delegation.objects.get(Q(categories=None)|Q(
+                Delegation.objects.get(Q(categories=None) | Q(
                     categories=self.category),
                     leader=delegate, follower=user)
             except Delegation.DoesNotExist:
@@ -83,7 +83,7 @@ class Vote(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='votes')
     poll = models.ForeignKey('Poll', related_name='votes')
     choice = models.ForeignKey(Choice, related_name='votes')
-    delegate = models.ForeignKey(settings.AUTH_USER_MODEL, 
+    delegate = models.ForeignKey(settings.AUTH_USER_MODEL,
             related_name='delegated_votes', null=True, blank=True)
 
     class Meta:
@@ -109,16 +109,16 @@ signals.pre_save.connect(prevent_delegation_to_self, sender=Delegation)
 
 
 def propagate_vote(sender, instance, **kwargs):
-    # This ain't gonna scale, EVER, oh well :)
+    """ Horrible delegation engine which needs a SQL rewrite. """
     User = get_user_model()
 
     followers = User.objects.filter(
-            models.Q(delegations_as_follower__categories=instance.poll.category) | 
-            models.Q(delegations_as_follower__categories=None),
-            delegations_as_follower__leader=instance.user,
-        ).exclude(
-            votes__poll=instance.poll, 
-            votes__delegate=None,
+        models.Q(delegations_as_follower__categories=instance.poll.category) |
+        models.Q(delegations_as_follower__categories=None),
+        delegations_as_follower__leader=instance.user,
+    ).exclude(
+        votes__poll=instance.poll,
+        votes__delegate=None,
     )
 
     for user in followers:
