@@ -111,78 +111,91 @@ signals.pre_save.connect(prevent_delegation_to_self, sender=Delegation)
 
 def propagate_vote(sender, instance, **kwargs):
     if instance.poll.category:
-        sql = '''
-        INSERT OR IGNORE
-        INTO decision_vote (
+        extra_condition = '''
+            d.id NOT IN (
+                SELECT
+                    dc.delegation_id
+                FROM
+                    decision_delegation_categories AS dc
+            )
+            OR
+            d.id IN (
+                SELECT
+                    dc.delegation_id
+                FROM
+                    decision_delegation_categories AS dc
+                WHERE
+                    dc.category_id = %s
+            )
+        ''' % instance.poll.category_id
+    else:
+        extra_condition = '''
+            (
+                SELECT
+                    COUNT(id)
+                FROM
+                    decision_delegation_categories AS dc
+                WHERE
+                    dc.delegation_id = d.id
+            ) < 1
+        '''
+
+    if 'postgres' in settings.DATABASES['default']['ENGINE']:
+        null = 'null::INTEGER'
+    else:
+        null = 'null'
+
+    sql = '''
+    INSERT INTO decision_vote (
             user_id,
             poll_id,
             choice_id,
             delegate_id
-        ) WITH RECURSIVE dlg(x, parent) as (
-            VALUES(%s, null)
+        ) WITH RECURSIVE dlg(dlg_user_id, dlg_poll_id,
+                             dlg_choice_id, dlg_delegate_id) as (
+            VALUES(%s, %s, %s, {null})
             UNION
             SELECT
                 d.follower_id,
-                x
+                dlg_poll_id,
+                dlg_choice_id,
+                d.leader_id
             FROM
-                decision_delegation AS d,
-                dlg
+                decision_delegation AS d
+            INNER JOIN dlg ON dlg.dlg_user_id = d.leader_id
             WHERE
-                d.leader_id=x
+                d.leader_id = dlg_user_id
                 AND
                 (
-                    d.id NOT IN (
-                        SELECT
-                            dc.delegation_id
-                        FROM
-                            decision_delegation_categories AS dc
-                    )
-                    OR
-                    d.id IN (
-                        SELECT
-                            dc.delegation_id
-                        FROM
-                            decision_delegation_categories AS dc
-                        WHERE
-                            dc.category_id = %s
-                    )
+                    {extra_condition}
                 )
-        ) SELECT x, %s, %s, parent FROM dlg;
-        '''
-
-        with connection.cursor() as c:
-            c.execute(sql, [instance.user_id, instance.poll_id,
-                instance.choice_id, instance.poll.category_id])
-    else:
-        sql = '''
-        INSERT OR IGNORE
-        INTO decision_vote (
-            user_id,
-            poll_id,
-            choice_id,
-            delegate_id
-        ) WITH RECURSIVE dlg(x, parent) as (
-            VALUES(%s, null)
-            UNION
-            SELECT
-                d.follower_id,
-                x
-            FROM
-                decision_delegation AS d,
-                dlg
-            WHERE
-                d.leader_id=x
                 AND
-                d.id NOT IN (
+                (
                     SELECT
-                        dc.delegation_id
+                        COUNT(v.id)
                     FROM
-                        decision_delegation_categories AS dc
-                )
-        ) SELECT x, %s, %s, parent FROM dlg;
-        '''
+                        decision_vote AS v
+                    WHERE
+                        v.user_id = d.follower_id
+                        AND
+                        v.poll_id = dlg_poll_id
+                ) < 1
+        )
+        SELECT
+            dlg_user_id,
+            dlg_poll_id,
+            dlg_choice_id,
+            dlg_delegate_id
+        FROM
+            dlg
+        WHERE
+            dlg_user_id != %s
+    '''
 
-        with connection.cursor() as c:
-            c.execute(sql, [instance.user_id, instance.poll_id,
-                instance.choice_id])
+    sql = sql.replace('{extra_condition}', extra_condition)
+    sql = sql.replace('{null}', null)
+
+    with connection.cursor() as c:
+        c.execute(sql, [instance.user_id, instance.poll_id,
+            instance.choice_id, instance.user_id])
 signals.post_save.connect(propagate_vote, sender=Vote)
