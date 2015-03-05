@@ -1,3 +1,5 @@
+import os
+
 from django.conf import settings
 from django.utils.translation import ugettext as _
 from django.db import models
@@ -194,6 +196,10 @@ def propagate_vote(sender, instance, **kwargs):
 
     sql = sql.replace('{extra_condition}', extra_condition)
     sql = sql.replace('{null}', null)
+
+    if os.environ.get('TRAVIS', False):
+        print [instance.user_id, instance.poll_id,
+            instance.choice_id, instance.user_id], sql
 
     with connection.cursor() as c:
         c.execute(sql, [instance.user_id, instance.poll_id,
