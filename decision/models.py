@@ -183,5 +183,6 @@ def propagate_vote(sender, instance, **kwargs):
         '''
 
         with connection.cursor() as c:
-            c.execute(sql, [instance.user_id, instance.poll_id, instance.choice_id])
+            c.execute(sql, [instance.user_id, instance.poll_id,
+                instance.choice_id])
 signals.post_save.connect(propagate_vote, sender=Vote)
