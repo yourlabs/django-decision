@@ -1,6 +1,8 @@
 language: python
 python:
   - "2.7"
+allow_failures:
+  - REQ="django<1.8"
 env:
   - REQ="django<1.8"
   - REQ="psycopg2 django<1.8" DB_ENGINE=django.db.backends.postgresql_psycopg2 DB_USER=postgres DB_NAME=decision
