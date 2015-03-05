@@ -4,6 +4,7 @@ from django.db import models
 from django.db.models import Count, Q, signals
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
+from django.db import connection
 
 from .exceptions import *
 
@@ -109,18 +110,78 @@ signals.pre_save.connect(prevent_delegation_to_self, sender=Delegation)
 
 
 def propagate_vote(sender, instance, **kwargs):
-    """ Horrible delegation engine which needs a SQL rewrite. """
-    User = get_user_model()
+    if instance.poll.category:
+        sql = '''
+        INSERT OR IGNORE
+        INTO decision_vote (
+            user_id,
+            poll_id,
+            choice_id,
+            delegate_id
+        ) WITH RECURSIVE dlg(x, parent) as (
+            VALUES(%s, null)
+            UNION
+            SELECT
+                d.follower_id,
+                x
+            FROM
+                decision_delegation AS d,
+                dlg
+            WHERE
+                d.leader_id=x
+                AND
+                (
+                    d.id NOT IN (
+                        SELECT
+                            dc.delegation_id
+                        FROM
+                            decision_delegation_categories AS dc
+                    )
+                    OR
+                    d.id IN (
+                        SELECT
+                            dc.delegation_id
+                        FROM
+                            decision_delegation_categories AS dc
+                        WHERE
+                            dc.category_id = %s
+                    )
+                )
+        ) SELECT x, %s, %s, parent FROM dlg;
+        '''
 
-    followers = User.objects.filter(
-        models.Q(delegations_as_follower__categories=instance.poll.category) |
-        models.Q(delegations_as_follower__categories=None),
-        delegations_as_follower__leader=instance.user,
-    ).exclude(
-        votes__poll=instance.poll,
-        votes__delegate=None,
-    )
+        with connection.cursor() as c:
+            c.execute(sql, [instance.user_id, instance.poll_id,
+                instance.choice_id, instance.poll.category_id])
+    else:
+        sql = '''
+        INSERT OR IGNORE
+        INTO decision_vote (
+            user_id,
+            poll_id,
+            choice_id,
+            delegate_id
+        ) WITH RECURSIVE dlg(x, parent) as (
+            VALUES(%s, null)
+            UNION
+            SELECT
+                d.follower_id,
+                x
+            FROM
+                decision_delegation AS d,
+                dlg
+            WHERE
+                d.leader_id=x
+                AND
+                d.id NOT IN (
+                    SELECT
+                        dc.delegation_id
+                    FROM
+                        decision_delegation_categories AS dc
+                )
+        ) SELECT x, %s, %s, parent FROM dlg;
+        '''
 
-    for user in followers:
-        instance.poll.set_vote(user, instance.choice, instance.user)
+        with connection.cursor() as c:
+            c.execute(sql, [instance.user_id, instance.poll_id, instance.choice_id])
 signals.post_save.connect(propagate_vote, sender=Vote)

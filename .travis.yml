@@ -3,6 +3,7 @@ python:
   - "2.7"
 env:
   - REQ="django<1.8"
+  - REQ="django<1.8" DB_ENGINE=django.db.backends.postgresql_psycopg2 DB_USER=postgres DB_NAME=decision
 install:
   - pip install -U pip
   - pip install pep8 coveralls $REQ
@@ -10,6 +11,7 @@ install:
   - pip freeze
 before_script:
   - "pep8 --exclude=tests,migrations --ignore=E124,E128 decision"
+  - psql -c 'create database test_decision;' -U postgres
 after_success:
   - coveralls
 script:
