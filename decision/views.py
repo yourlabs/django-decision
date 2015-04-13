@@ -3,7 +3,11 @@ from django import shortcuts
 from django import http
 from django.core.cache import cache
 
-from .models import Poll, Vote
+from rest_framework import viewsets
+
+from .models import Poll, Category, Vote, Choice, Delegation
+from .serializers import (PollSerializer, CategorySerializer,
+        VoteSerializer, ChoiceSerializer, DelegationSerializer)
 
 
 class PollVoteView(generic.DetailView):
@@ -19,3 +23,28 @@ class PollVoteView(generic.DetailView):
 
         return shortcuts.render(request, 'decision/_poll_vote.html',
             {'object': self.object})
+
+
+class PollViewSet(viewsets.ModelViewSet):
+    queryset = Poll.objects.all()
+    serializer_class = PollSerializer
+
+
+class CategoryViewSet(viewsets.ModelViewSet):
+    queryset = Category.objects.all()
+    serializer_class = CategorySerializer
+
+
+class VoteViewSet(viewsets.ModelViewSet):
+    queryset = Vote.objects.all()
+    serializer_class = VoteSerializer
+
+
+class ChoiceViewSet(viewsets.ModelViewSet):
+    queryset = Choice.objects.all()
+    serializer_class = ChoiceSerializer
+
+
+class DelegationViewSet(viewsets.ModelViewSet):
+    queryset = Delegation.objects.all()
+    serializer_class = DelegationSerializer
